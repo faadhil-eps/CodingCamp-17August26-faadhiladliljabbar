@@ -1,0 +1,570 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Expense &amp; Budget Visualizer</title>
+
+  <style>
+    /* =====================================================================
+       CSS CUSTOM PROPERTIES
+       Color palette, spacing tokens, typography, and theme variables
+       ===================================================================== */
+    :root {
+      /* --- Category colors (fixed) --- */
+      --color-cat-food:          #FF6B6B;
+      --color-cat-transport:     #4ECDC4;
+      --color-cat-shopping:      #45B7D1;
+      --color-cat-bills:         #96CEB4;
+      --color-cat-entertainment: #FFEAA7;
+      --color-cat-health:        #DDA0DD;
+      --color-cat-other:         #B0B0B0;
+
+      /* --- UI palette --- */
+      --color-bg:           #F7F8FA;
+      --color-surface:      #FFFFFF;
+      --color-border:       #E2E8F0;
+      --color-text-primary: #1A202C;
+      --color-text-secondary: #718096;
+      --color-text-muted:   #A0AEC0;
+      --color-accent:       #4A90E2;
+      --color-accent-hover: #357ABD;
+
+      /* --- Status colors --- */
+      --color-safe:         #38A169;   /* balance ≥ 0  */
+      --color-safe-bg:      #F0FFF4;
+      --color-warning:      #E53E3E;   /* balance < 0  */
+      --color-warning-bg:   #FFF5F5;
+
+      /* --- Toast / notification --- */
+      --color-toast-bg:     #2D3748;
+      --color-toast-text:   #FFFFFF;
+
+      /* --- Spacing tokens --- */
+      --space-1:  4px;
+      --space-2:  8px;
+      --space-3:  12px;
+      --space-4:  16px;
+      --space-5:  20px;
+      --space-6:  24px;
+      --space-8:  32px;
+      --space-10: 40px;
+      --space-12: 48px;
+
+      /* --- Border radius --- */
+      --radius-sm:   4px;
+      --radius-md:   8px;
+      --radius-lg:   12px;
+      --radius-full: 9999px;
+
+      /* --- Typography --- */
+      --font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+                     Helvetica, Arial, sans-serif;
+      --font-size-xs:  12px;
+      --font-size-sm:  14px;
+      --font-size-md:  16px;
+      --font-size-lg:  18px;
+      --font-size-xl:  20px;
+      --font-size-2xl: 24px;
+      --font-size-3xl: 30px;
+      --font-weight-normal:    400;
+      --font-weight-medium:    500;
+      --font-weight-semibold:  600;
+      --font-weight-bold:      700;
+      --line-height-tight:     1.25;
+      --line-height-normal:    1.5;
+
+      /* --- Shadows --- */
+      --shadow-sm:  0 1px 2px rgba(0,0,0,0.05);
+      --shadow-md:  0 4px 6px rgba(0,0,0,0.07), 0 1px 3px rgba(0,0,0,0.06);
+      --shadow-lg:  0 10px 15px rgba(0,0,0,0.10), 0 4px 6px rgba(0,0,0,0.05);
+
+      /* --- Layout --- */
+      --max-content-width: 1200px;
+      --sidebar-width:     360px;
+      --header-height:     64px;
+    }
+
+    /* =====================================================================
+       BASE RESET
+       ===================================================================== */
+    *,
+    *::before,
+    *::after {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    html {
+      font-size: var(--font-size-md);
+      -webkit-text-size-adjust: 100%;
+    }
+
+    body {
+      font-family: var(--font-family);
+      font-size: var(--font-size-md);
+      font-weight: var(--font-weight-normal);
+      line-height: var(--line-height-normal);
+      color: var(--color-text-primary);
+      background-color: var(--color-bg);
+      min-height: 100vh;
+      /* Prevent horizontal scroll at minimum supported 320px width */
+      overflow-x: hidden;
+    }
+
+    ul, ol {
+      list-style: none;
+    }
+
+    a {
+      color: inherit;
+      text-decoration: none;
+    }
+
+    button {
+      font-family: inherit;
+      font-size: inherit;
+      cursor: pointer;
+      border: none;
+      background: none;
+    }
+
+    input,
+    select,
+    textarea {
+      font-family: inherit;
+      font-size: inherit;
+    }
+
+    img,
+    canvas {
+      display: block;
+      max-width: 100%;
+    }
+
+    /* =====================================================================
+       APP CONTAINER
+       ===================================================================== */
+    #app {
+      width: 100%;
+      max-width: var(--max-content-width);
+      margin: 0 auto;
+      padding: 0 var(--space-4);
+    }
+
+    /* =====================================================================
+       #header — App title + Month Selector
+       ===================================================================== */
+    #header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      height: var(--header-height);
+      padding: 0 var(--space-2);
+      background-color: var(--color-surface);
+      border-bottom: 1px solid var(--color-border);
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      /* Full-bleed header at top */
+      margin-left: calc(-1 * var(--space-4));
+      margin-right: calc(-1 * var(--space-4));
+      padding-left: var(--space-6);
+      padding-right: var(--space-6);
+    }
+
+    /* =====================================================================
+       #summary-panel — Budget / Pengeluaran / Sisa cards
+       ===================================================================== */
+    #summary-panel {
+      margin-top: var(--space-6);
+      padding: var(--space-6);
+      background-color: var(--color-surface);
+      border-radius: var(--radius-lg);
+      box-shadow: var(--shadow-sm);
+    }
+
+    /* =====================================================================
+       #chart-section — Donut chart canvas + legend
+       ===================================================================== */
+    #chart-section {
+      margin-top: var(--space-6);
+      padding: var(--space-6);
+      background-color: var(--color-surface);
+      border-radius: var(--radius-lg);
+      box-shadow: var(--shadow-sm);
+    }
+
+    /* =====================================================================
+       #expense-form — Add / Edit expense form
+       ===================================================================== */
+    #expense-form {
+      margin-top: var(--space-6);
+      padding: var(--space-6);
+      background-color: var(--color-surface);
+      border-radius: var(--radius-lg);
+      box-shadow: var(--shadow-sm);
+    }
+
+    /* =====================================================================
+       #expense-list — Scrollable list of expense records
+       ===================================================================== */
+    #expense-list {
+      margin-top: var(--space-6);
+      padding: var(--space-6);
+      background-color: var(--color-surface);
+      border-radius: var(--radius-lg);
+      box-shadow: var(--shadow-sm);
+      margin-bottom: var(--space-10);
+    }
+
+    /* =====================================================================
+       #category-modal — Category management overlay (dialog)
+       ===================================================================== */
+    #category-modal {
+      display: none; /* shown via JS when triggered */
+      position: fixed;
+      inset: 0;
+      z-index: 1000;
+    }
+
+    #category-modal.is-open {
+      display: block;
+    }
+
+    #category-modal .modal-backdrop {
+      position: absolute;
+      inset: 0;
+      background-color: rgba(0, 0, 0, 0.5);
+    }
+
+    #category-modal .modal-panel {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      width: min(480px, calc(100vw - var(--space-8)));
+      max-height: calc(100vh - var(--space-12));
+      overflow-y: auto;
+      background-color: var(--color-surface);
+      border-radius: var(--radius-lg);
+      box-shadow: var(--shadow-lg);
+      padding: var(--space-6);
+    }
+
+    /* =====================================================================
+       UTILITY / SHARED STYLES
+       ===================================================================== */
+
+    /* Safe / warning balance indicator classes (applied dynamically via JS) */
+    .safe {
+      color: var(--color-safe);
+      background-color: var(--color-safe-bg);
+    }
+
+    .warning {
+      color: var(--color-warning);
+      background-color: var(--color-warning-bg);
+    }
+
+    /* Inline field error messages */
+    .field-error {
+      display: block;
+      color: var(--color-warning);
+      font-size: var(--font-size-sm);
+      margin-top: var(--space-1);
+    }
+
+    /* Toast notification (fixed corner) */
+    #toast-container {
+      position: fixed;
+      bottom: var(--space-6);
+      right: var(--space-6);
+      z-index: 2000;
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-2);
+    }
+
+    .toast {
+      background-color: var(--color-toast-bg);
+      color: var(--color-toast-text);
+      padding: var(--space-3) var(--space-4);
+      border-radius: var(--radius-md);
+      font-size: var(--font-size-sm);
+      box-shadow: var(--shadow-md);
+      max-width: 320px;
+    }
+
+    /* Storage unavailability banner */
+    #storage-banner {
+      display: none;
+      width: 100%;
+      padding: var(--space-3) var(--space-6);
+      background-color: var(--color-warning);
+      color: #FFFFFF;
+      font-size: var(--font-size-sm);
+      font-weight: var(--font-weight-medium);
+      text-align: center;
+    }
+
+    #storage-banner.is-visible {
+      display: block;
+    }
+
+    /* =====================================================================
+       RESPONSIVE LAYOUT
+       Two-column grid for viewports wider than 600px:
+         - Left column: #expense-form
+         - Right column: #chart-section
+         - Full-width below: #expense-list
+       ===================================================================== */
+    @media (min-width: 601px) {
+      #app {
+        padding: 0 var(--space-6);
+      }
+
+      .main-grid {
+        display: grid;
+        grid-template-columns: 1fr var(--sidebar-width);
+        grid-template-rows: auto;
+        gap: var(--space-6);
+        margin-top: var(--space-6);
+        align-items: start;
+      }
+
+      /* Summary panel spans full width of grid */
+      .main-grid #summary-panel {
+        grid-column: 1 / -1;
+        margin-top: 0;
+      }
+
+      /* Expense form on the left */
+      .main-grid #expense-form {
+        grid-column: 1;
+        margin-top: 0;
+      }
+
+      /* Chart section on the right */
+      .main-grid #chart-section {
+        grid-column: 2;
+        grid-row: 2;
+        margin-top: 0;
+      }
+
+      /* Expense list spans full width */
+      .main-grid #expense-list {
+        grid-column: 1 / -1;
+        margin-top: 0;
+      }
+    }
+
+    @media (max-width: 600px) {
+      #app {
+        padding: 0 var(--space-3);
+      }
+
+      #header {
+        padding-left: var(--space-4);
+        padding-right: var(--space-4);
+      }
+
+      #category-modal .modal-panel {
+        width: calc(100vw - var(--space-6));
+      }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Storage unavailability persistent banner (shown via JS if LocalStorage is unavailable) -->
+  <div id="storage-banner" role="alert" aria-live="polite">
+    Data tidak dapat disimpan — LocalStorage tidak tersedia
+  </div>
+
+  <!-- ===================================================================
+       Main application container
+       =================================================================== -->
+  <div id="app">
+
+    <!-- Header: app title + month selector -->
+    <header id="header" role="banner">
+      <!-- Populated by JS: app title (left), month selector (centre/right) -->
+    </header>
+
+    <!-- Main layout grid (single-column on mobile, two-column on wider screens) -->
+    <div class="main-grid">
+
+      <!-- Summary panel: Budget / Pengeluaran / Sisa cards -->
+      <section id="summary-panel" aria-label="Ringkasan anggaran">
+        <!-- Populated by JS -->
+      </section>
+
+      <!-- Expense entry / edit form -->
+      <section id="expense-form" aria-label="Form pengeluaran">
+        <!-- Populated by JS -->
+      </section>
+
+      <!-- Category breakdown donut chart + legend -->
+      <section id="chart-section" aria-label="Grafik kategori pengeluaran">
+        <!-- Populated by JS -->
+      </section>
+
+      <!-- Scrollable list of expense records for the selected month -->
+      <section id="expense-list" aria-label="Daftar pengeluaran">
+        <!-- Populated by JS -->
+      </section>
+
+    </div><!-- /.main-grid -->
+
+  </div><!-- /#app -->
+
+  <!-- Category management modal overlay -->
+  <div
+    id="category-modal"
+    role="dialog"
+    aria-modal="true"
+    aria-labelledby="category-modal-title"
+  >
+    <div class="modal-backdrop"></div>
+    <div class="modal-panel">
+      <!-- Populated by JS -->
+    </div>
+  </div>
+
+  <!-- Toast notification container (global errors and feedback) -->
+  <div id="toast-container" aria-live="polite" aria-atomic="false"></div>
+
+  <!-- ===================================================================
+       Application JavaScript
+       All modules, domain logic, and UI components are inlined here.
+       =================================================================== -->
+  <script>
+    // -----------------------------------------------------------------------
+    // Expense & Budget Visualizer — main script
+    // Modules are defined below in dependency order:
+    //   1. storage  — LocalStorage read/write
+    //   2. fmt      — IDR formatter + month helpers
+    //   3. validate — Input validation
+    //   4. calc     — Calculations (balance, chart segments, …)
+    //   5. catOps   — Category operations
+    //   6. bus      — Event bus
+    //   7. UI components (header, summary, chart, form, list, modal)
+    //   8. initApp  — Bootstrap and state initialisation
+    // -----------------------------------------------------------------------
+
+    // (module implementations added by subsequent tasks)
+
+  </script>
+
+</body>
+</html>
+    // -----------------------------------------------------------------------
+    // UI Component: Summary Panel
+    // Wires the Budget / Pengeluaran / Sisa cards and the inline budget form.
+    // Satisfies Requirements 1.1, 1.3, 1.4, 1.5, 4.1–4.5, 9.3
+    // -----------------------------------------------------------------------
+
+    function initSummaryPanel() {
+      // --- Element references ---
+      const form        = document.getElementById('budget-form');
+      const input       = document.getElementById('input-budget');
+      const preview     = document.getElementById('budget-preview');
+      const errorEl     = document.getElementById('budget-error');
+      const btnEdit     = document.getElementById('btn-edit-budget');
+      const btnSave     = document.getElementById('btn-save-budget');
+      const btnCancel   = document.getElementById('btn-cancel-budget');
+
+      const elBudget    = document.getElementById('summary-budget');
+      const elExpenses  = document.getElementById('summary-expenses');
+      const elBalance   = document.getElementById('summary-balance');
+      const elStatus    = document.getElementById('summary-balance-status');
+      const cardBalance = document.getElementById('card-balance');
+
+      // --- Helper: re-render all three summary cards for a given month ---
+      function renderSummary(monthKey) {
+        const budget   = getBudget(monthKey);
+        const expenses = getMonthExpenses(monthKey);
+        const total    = calc.totalExpenses(expenses);
+        const balance  = calc.balance(budget, expenses);
+
+        elBudget.textContent   = fmt.idr(budget);
+        elExpenses.textContent = fmt.idr(total);
+        elBalance.textContent  = fmt.idr(Math.abs(balance));
+
+        // Apply safe / warning state to balance card
+        cardBalance.classList.toggle('safe',    balance >= 0);
+        cardBalance.classList.toggle('warning', balance < 0);
+        elStatus.textContent = balance >= 0 ? 'Lebih' : 'Defisit';
+      }
+
+      // Initial render
+      renderSummary(appState.currentMonthKey);
+
+      // Re-render whenever expenses, budget, or month change
+      bus.on('expenses:changed', () => renderSummary(appState.currentMonthKey));
+      bus.on('budget:changed',   () => renderSummary(appState.currentMonthKey));
+      bus.on('month:changed',    () => renderSummary(appState.currentMonthKey));
+
+      // --- Budget form: show / hide ---
+
+      btnEdit.addEventListener('click', () => {
+        // Pre-populate with current budget if one exists
+        const current = getBudget(appState.currentMonthKey);
+        input.value = current > 0 ? current : '';
+        preview.textContent = current > 0 ? fmt.idr(current) : '';
+        errorEl.textContent = '';
+        form.removeAttribute('hidden');
+        input.focus();
+      });
+
+      btnCancel.addEventListener('click', () => {
+        form.setAttribute('hidden', '');
+        input.value = '';
+        preview.textContent = '';
+        errorEl.textContent = '';
+      });
+
+      // --- Live IDR preview while typing ---
+      function updateBudgetPreview() {
+        const n = Number(input.value);
+        preview.textContent = (!input.value.trim() || isNaN(n)) ? '' : fmt.idr(n);
+      }
+
+      input.addEventListener('input', updateBudgetPreview);
+
+      // --- Live validation feedback on change ---
+      input.addEventListener('change', () => {
+        const raw = input.value.trim();
+        if (raw) {
+          const result = validate.budgetAmount(raw);
+          errorEl.textContent = result.ok ? '' : result.error;
+        }
+      });
+
+      // --- Save button: validate then (for now) hide form ---
+      // Actual persistence (find-or-create Budget record + emit budget:changed)
+      // is wired in task 7.2. This handler satisfies task 7.1: validation
+      // feedback on submit (Requirements 1.1, 1.3, 9.3).
+      btnSave.addEventListener('click', () => {
+        const raw    = input.value.trim();
+        const result = validate.budgetAmount(raw);
+        if (!result.ok) {
+          errorEl.textContent = result.error;
+          input.focus();
+          return;
+        }
+        errorEl.textContent = '';
+        // Budget saving will be completed in task 7.2
+        form.setAttribute('hidden', '');
+        preview.textContent = '';
+      });
+    }
+
+    // -----------------------------------------------------------------------
+    // UI Component: Chart Legend
+    // Renders a <ul> below the donut canvas with a color swatch, category name,
+    // and IDR-formatted amount for each segment.
+    // Satisfies Requirements 5.4
+    // -----------------------------------------------------------------------
